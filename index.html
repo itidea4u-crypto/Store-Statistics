@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Store Statistics</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="header-title">📊 Store Statistics</h1>
+      <span class="header-subtitle">ข้อมูลสรุปร้าน — อัปเดต: <span id="last-updated">—</span></span>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Summary Cards -->
+    <section class="cards-grid">
+      <div class="card card--blue">
+        <div class="card-label">Total Leads</div>
+        <div class="card-value" id="total-leads">—</div>
+        <div class="card-note">ลูกค้าที่เข้ามาทั้งหมด</div>
+      </div>
+      <div class="card card--orange">
+        <div class="card-label">Open Bills</div>
+        <div class="card-value" id="open-bills">—</div>
+        <div class="card-note">บิลที่ยังค้างอยู่</div>
+      </div>
+      <div class="card card--green">
+        <div class="card-label">Conversion Rate</div>
+        <div class="card-value" id="conversion-rate">—</div>
+        <div class="card-note">อัตราปิดการขาย</div>
+      </div>
+      <div class="card card--purple">
+        <div class="card-label">Total Sales</div>
+        <div class="card-value" id="total-sales">—</div>
+        <div class="card-note">ยอดขายรวม (บาท)</div>
+      </div>
+    </section>
+
+    <!-- Sales Rep Table -->
+    <section class="section">
+      <h2 class="section-title">รายชื่อเซล</h2>
+      <div class="table-wrapper">
+        <table class="data-table" id="sales-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ชื่อเซล</th>
+              <th>Leads</th>
+              <th>ปิดงาน</th>
+              <th>Conversion</th>
+              <th>ยอดขาย (บาท)</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody id="sales-tbody">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Daily Summary Placeholder -->
+    <section class="section">
+      <h2 class="section-title">สรุปรายวัน <span class="badge">เร็วๆ นี้</span></h2>
+      <div class="placeholder-box">
+        <span class="placeholder-icon">📅</span>
+        <p>พื้นที่นี้สำหรับกราฟ / สรุปรายวัน<br>จะเชื่อมข้อมูลจาก Google Sheet ในลำดับถัดไป</p>
+      </div>
+    </section>
+
+    <!-- Chart Placeholder -->
+    <section class="section">
+      <h2 class="section-title">กราฟภาพรวม <span class="badge">เร็วๆ นี้</span></h2>
+      <div class="placeholder-box">
+        <span class="placeholder-icon">📈</span>
+        <p>กราฟแสดงแนวโน้มยอดขายรายสัปดาห์<br>จะเพิ่มเมื่อเชื่อม API แล้ว</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>Store Statistics · ข้อมูล Mock (ทดสอบ) · <a href="https://github.com/itidea4u-crypto/Store-Statistics" target="_blank">GitHub</a></p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
