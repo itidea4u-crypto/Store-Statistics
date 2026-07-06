@@ -212,6 +212,7 @@ const TREND = [
 let wkData           = WK;
 let trendData        = TREND;
 let salesDisplayData;        // กำหนดค่าหลัง SALES ถูก define ด้านล่าง
+let perfDisplayData;         // กำหนดค่าหลัง PERF ถูก define ด้านล่าง
 let usingRealData    = false;
 
 function buildWKFromReal(salesData, zaapiData) {
@@ -377,6 +378,118 @@ function buildSalesFromReal(salesData) {
   };
 }
 
+function buildPerfFromReal(salesData, zaapiData) {
+  const repNames = REPS.map(r => r.name);
+  const wkKeys   = ["WK1","WK2","WK3","WK4"];
+  const S        = salesDisplayData;
+
+  // รวม zaapi ทั้งเดือนมิถุนายน (วัน 1–30)
+  const repChats = {}, repSlow = {}, repLeadTotal = {};
+  repNames.forEach(n => { repChats[n]=0; repSlow[n]=0; repLeadTotal[n]=0; });
+  for (let day = 1; day <= 30; day++) {
+    const dk = `2026-06-${String(day).padStart(2,'0')}`;
+    for (const rep of repNames) {
+      repChats[rep]     += (zaapiData.chatsByDay[dk]     && zaapiData.chatsByDay[dk][rep])     || 0;
+      repSlow[rep]      += (zaapiData.missed12hByDay[dk] && zaapiData.missed12hByDay[dk][rep]) || 0;
+      repLeadTotal[rep] += (zaapiData.leadsByDay[dk]     && zaapiData.leadsByDay[dk][rep])     || 0;
+    }
+  }
+
+  // byRep — รวมข้อมูลขาย + zaapi
+  const byRep = REPS.map(r => {
+    const sr     = S.byRep.find(x => x.name === r.name) || {};
+    const status = repSlow[r.name] >= 50 ? "จับตา"
+                 : repSlow[r.name] >= 30 ? "ต้องคุย"
+                 : "ปกติ";
+    return {
+      name:   r.name,
+      newOld: `บิลใหม่ ${sr.newCust||0} / บิลเก่า ${sr.oldCust||0}`,
+      chats:  repChats[r.name],
+      slow:   repSlow[r.name],
+      bills:  sr.open  || 0,
+      sales:  sr.val   || 0,
+      status,
+    };
+  });
+
+  // Lead/บิล รายสัปดาห์ รายเซล
+  const leadBillWk = [
+    ...REPS.map(r => ({
+      name: r.name,
+      d: wkKeys.flatMap(wk => {
+        const wkMeta = salesData.weeks && salesData.weeks[wk];
+        const days   = wkMeta ? wkMeta.days : [];
+        const lead   = days.reduce((s, day) => {
+          const dk = `2026-06-${String(day).padStart(2,'0')}`;
+          return s + ((zaapiData.leadsByDay[dk] && zaapiData.leadsByDay[dk][r.name]) || 0);
+        }, 0);
+        const bill = (salesData.byWkBySale[wk] && salesData.byWkBySale[wk][r.name]
+                      && salesData.byWkBySale[wk][r.name].open) || 0;
+        return [lead, bill];
+      }),
+    })),
+    {
+      name: "รวม",
+      d: wkKeys.flatMap(wk => {
+        const wkMeta = salesData.weeks && salesData.weeks[wk];
+        const days   = wkMeta ? wkMeta.days : [];
+        const lead   = days.reduce((s, day) => {
+          const dk = `2026-06-${String(day).padStart(2,'0')}`;
+          return s + repNames.reduce((rs, rep) =>
+            rs + ((zaapiData.leadsByDay[dk] && zaapiData.leadsByDay[dk][rep]) || 0), 0);
+        }, 0);
+        const bill = repNames.reduce((s, rep) =>
+          s + ((salesData.byWkBySale[wk] && salesData.byWkBySale[wk][rep]
+                && salesData.byWkBySale[wk][rep].open) || 0), 0);
+        return [lead, bill];
+      }),
+    },
+  ];
+
+  // repDetail cards — facts/points/watch/fix จากตัวเลขจริง
+  const teamAvgBills = byRep.reduce((s,r) => s + r.bills, 0) / byRep.length;
+  const teamAvgSales = byRep.reduce((s,r) => s + r.sales, 0) / byRep.length;
+
+  const repDetail = REPS.map((r, i) => {
+    const br  = byRep[i];
+    const sr  = S.byRep.find(x => x.name === r.name) || {};
+    const pct = repLeadTotal[r.name] > 0 ? Math.round(br.bills / repLeadTotal[r.name] * 100) : 0;
+    const facts = [
+      `ตอบช้า 12 ชม. ${br.slow} เคส จากแชทรวม ${fmt(br.chats)} ครั้ง`,
+      `เปิดบิล ${br.bills} รายการ (เฉลี่ยทีม ${teamAvgBills.toFixed(1)} รายการ)`,
+      `ยอดขายรวม ${fmtB(br.sales)} (เฉลี่ยทีม ${fmtB(teamAvgSales)})`,
+      repLeadTotal[r.name] > 0
+        ? `Lead ${fmt(repLeadTotal[r.name])} คน → เปิดบิล ${pct}%`
+        : 'ไม่มีข้อมูล Lead',
+    ];
+    const points = [], watch = [], fix = [];
+    if (br.bills > teamAvgBills) points.push(`เปิดบิล ${br.bills} รายการ สูงกว่าเฉลี่ย ${teamAvgBills.toFixed(1)} รายการ`);
+    if (br.sales > teamAvgSales) points.push(`ยอดขาย ${fmtB(br.sales)} สูงกว่าเฉลี่ยทีม`);
+    if (br.bills < teamAvgBills) watch.push(`เปิดบิล ${br.bills} รายการ ต่ำกว่าเฉลี่ย ${teamAvgBills.toFixed(1)} รายการ`);
+    if (br.sales < teamAvgSales) watch.push(`ยอดขาย ${fmtB(br.sales)} ต่ำกว่าเฉลี่ยทีม`);
+    if (br.slow > 0) fix.push(`ตอบช้า 12 ชม. ${br.slow} เคส — ตรวจสอบช่วงเวลาที่หลุดและเคลียร์เคสค้าง`);
+    if (br.bills < teamAvgBills) fix.push(`เปิดบิล ${br.bills} ต่ำกว่าเฉลี่ย — ดูกระบวนการปิดการขาย`);
+    return {
+      name: r.name, color: r.color, status: br.status,
+      chats: br.chats, newOld: `${sr.newCust||0}/${sr.oldCust||0}`,
+      slow: br.slow, bills: br.bills, sales: br.sales,
+      facts, points, watch, fix,
+    };
+  });
+
+  const totalChats = byRep.reduce((s,r) => s + r.chats, 0);
+  const totalSlow  = byRep.reduce((s,r) => s + r.slow,  0);
+
+  return {
+    isReal:     true,
+    from:       "2026-06-01",
+    to:         "2026-06-30",
+    monthLabel: salesData.month || "มิถุนายน 2569",
+    summary:    { sales: S.total, bills: S.totalOpen, chats: totalChats, slow: totalSlow },
+    byRep, leadBillWk, repDetail,
+  };
+}
+
 // โหลด JSON จริง — เฉพาะ localhost เท่านั้น เพื่อไม่ให้เกิด 404 บน GitHub Pages
 async function tryLoadRealData() {
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -394,6 +507,7 @@ async function tryLoadRealData() {
       wkData           = built;
       trendData        = buildTrendFromReal(built);
       salesDisplayData = buildSalesFromReal(salesData);
+      perfDisplayData  = buildPerfFromReal(salesData, zaapiData);
       usingRealData    = true;
       console.log('[Store-Statistics] ใช้ข้อมูลจริงจาก JSON');
     }
@@ -477,6 +591,8 @@ const PERF = {
      fix:["ตอบช้า 12 ชม. 41 เคส — ให้เช็กว่า/ช่วงเวลาที่หลุด และเคลียร์เคสค้างก่อนเริ่มเคสใหม่","เปิดบิล 29 รายการ ต่ำกว่าเฉลี่ย 39.5 รายการ — ให้เช็กว่าเคสที่แล้วยังไม่ได้เปิดบิล ตรวจราคา แบบนอน หรือไม่ได้ติดตามตามหลักจน","ยอดขาย ฿544,995 แม้เปิดบิล 29 รายการ — ให้ดูขนาดบิลต่อรายและลองเพิ่มยอดต่อบิล คิดเลขสูงขึ้น"]},
   ],
 };
+
+perfDisplayData = PERF;     // ต้อง assign หลัง PERF ถูก define
 
 // ─── Mock Data: สถิติแชท ──────────────────────────────────
 const CHAT = {
@@ -926,8 +1042,10 @@ function renderSales(){
 
 // ─── Page: ผลงานเซล ──────────────────────────────────────
 function renderPerformance(){
-  const s = PERF.summary;
-  const repRows = PERF.byRep.map(r=>`<tr>
+  const P = perfDisplayData;
+  const s = P.summary;
+
+  const repRows = P.byRep.map(r=>`<tr>
     <td>${r.name}</td>
     <td style="font-size:.8rem">${r.newOld}</td>
     <td>${fmt(r.chats)}</td>
@@ -938,12 +1056,12 @@ function renderPerformance(){
   </tr>`).join("");
 
   const wkHeaders = ["WK1 LEAD","WK1 บิล","WK2 LEAD","WK2 บิล","WK3 LEAD","WK3 บิล","WK4 LEAD","WK4 บิล"];
-  const lbRows = PERF.leadBillWk.map(r=>`<tr>
+  const lbRows = P.leadBillWk.map(r=>`<tr>
     <td>${r.name}</td>
     ${r.d.map((v,i)=>`<td class="${i%2===0?clsLead(v):clsBill(v)}">${fmt(v)}</td>`).join("")}
   </tr>`).join("");
 
-  const detailCards = PERF.repDetail.map(r=>`
+  const detailCards = P.repDetail.map(r=>`
     <div class="rep-card">
       <div class="rc-head">
         <div class="rc-name"><span class="rdot" style="background:${r.color}"></span>${r.name}</div>
@@ -968,19 +1086,21 @@ function renderPerformance(){
   document.getElementById("page-performance").innerHTML = `
     <div class="filter-row">
       <span class="filter-label">ตั้งแต่</span>
-      <input class="filter-input" type="date" value="${PERF.from}">
+      <input class="filter-input" type="date" value="${P.from}">
       <span class="filter-label">ถึง</span>
-      <input class="filter-input" type="date" value="${PERF.to}">
+      <input class="filter-input" type="date" value="${P.to}">
       <span class="filter-label">เซล</span>
       <select class="filter-select"><option>ทุกคน</option>${REPS.map(r=>`<option>${r.name}</option>`).join("")}</select>
       <button class="btn-orange">ดูข้อมูล</button>
     </div>
 
-    <div class="period-header" style="margin-bottom:14px">ผลงานช่วง <b>2026-06-01 – 2026-06-30</b></div>
+    <div class="info-bar">${usingRealData ? '📊' : '✅'} ${P.isReal ? `ข้อมูลจริง · ${P.monthLabel}` : 'ข้อมูลตัวอย่าง'}</div>
+
+    <div class="period-header" style="margin-bottom:14px">ผลงานช่วง <b>${P.from} – ${P.to}</b></div>
     <div class="sum-cards">
       <div class="sum-card"><div class="sum-label">ยอดขายรวม</div><div class="sum-val sv-o">${fmtB(s.sales)}</div><div class="sum-unit">บาท</div></div>
       <div class="sum-card"><div class="sum-label">เปิดบิลรวม</div><div class="sum-val sv-g">${s.bills}</div><div class="sum-unit">บิล (ในช่วงวันที่เลือก)</div></div>
-      <div class="sum-card"><div class="sum-label">แอกรวม</div><div class="sum-val">${fmt(s.chats)}</div><div class="sum-unit">ตอบช้า 12 ชม. 250 เคส</div></div>
+      <div class="sum-card"><div class="sum-label">แอกรวม</div><div class="sum-val">${fmt(s.chats)}</div><div class="sum-unit">ตอบช้า 12 ชม. ${s.slow != null ? s.slow : '—'} เคส</div></div>
     </div>
 
     <div class="section">
@@ -992,7 +1112,7 @@ function renderPerformance(){
         </tr></thead>
         <tbody>${repRows}</tbody>
       </table></div>
-      <div style="font-size:.74rem;color:var(--text3);margin-top:8px">count = จำนวนแอก/แชทที่ทีมกันรวมกันในช่วงระยะเวลา ไม่ใช่รายวัน</div>
+      <div style="font-size:.74rem;color:var(--text3);margin-top:8px">แชท = ZAAPI ChatsByAgent · ตอบช้า = 12HrMissedChatsByAgent · เปิดบิล/ยอดขาย = ข้อมูลออเดอร์จริง</div>
     </div>
 
     <div class="section">
@@ -1003,17 +1123,15 @@ function renderPerformance(){
         </tr></thead>
         <tbody>${lbRows}</tbody>
       </table></div>
-      <div style="font-size:.74rem;color:var(--text3);margin-top:8px">หมายเหตุ: ใช้ตัวแบ่งประมาณผลลัพธ์ตัวเลข · Lead จาก ZAAPI CustomerLabel · เปิดบิลจากข้อมูลออเดอร์จริง</div>
+      <div style="font-size:.74rem;color:var(--text3);margin-top:8px">Lead จาก ZAAPI CustomerLabel · เปิดบิลจากข้อมูลออเดอร์จริง</div>
     </div>
 
     <div class="section">
       <div class="sec-title">จุดเด่นและสิ่งที่ควรติดตามรายคน</div>
       <div class="rep-cards-grid">${detailCards}</div>
-      <div style="font-size:.74rem;color:var(--text3);margin-top:10px">ตาราง Lead ช่วยนี้ประมาณ ตอบช้า = จำนวนแชทที่ลูกค้าทีมได้ไม่ในช่วงเวลาตามมาตรฐาน · count = จำนวนแอก/แชทที่ทีมกันรวมกัน ไม่ใช่รายวัน</div>
-      <div style="font-size:.74rem;color:var(--text3);margin-top:4px">ตาราง Lead ช่วยนี้ประมาณ Lead ช่วยนี้ประมาณ Lead ใน phase ต่อไป</div>
     </div>
 
-    <div class="page-footer">ข้อมูลจากระบบบัญชี (Freshbooks)</div>
+    <div class="page-footer">ข้อมูลจากไฟล์ยอดขาย${P.isReal ? ` + ZAAPI · ${P.monthLabel}` : ' (ตัวอย่าง)'}</div>
   `;
 }
 
