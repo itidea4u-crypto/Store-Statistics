@@ -1,0 +1,7 @@
+# ข้อมูลจริง - ห้าม push ขึ้น GitHub
+data/sales.json
+data/zaapi.json
+
+# Windows
+Thumbs.db
+desktop.ini

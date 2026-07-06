@@ -207,6 +207,136 @@ const TREND = [
   {wk:"WK4",label:"22/6-28/6", leads:1215,bills:60,sales:1224159.25, pct:5},
 ];
 
+// ─── Real Data Layer ──────────────────────────────────────
+// wkData / trendData: เริ่มต้นเป็น mock, เปลี่ยนเป็นข้อมูลจริงเมื่อโหลด JSON ได้
+let wkData      = WK;
+let trendData   = TREND;
+let usingRealData = false;
+
+function buildWKFromReal(salesData, zaapiData) {
+  const repNames = REPS.map(r => r.name);
+  const result   = {};
+
+  for (const wkKey of ["WK1","WK2","WK3","WK4"]) {
+    const wkMeta = salesData.weeks && salesData.weeks[wkKey];
+    if (!wkMeta) continue;
+
+    const days  = wkMeta.days;
+    const dates = days.map(d => `${d}/6`);
+
+    // Lead รายวัน × รายเซล
+    const dailyLeads = repNames.map(rep =>
+      days.map(day => {
+        const dk = `2026-06-${String(day).padStart(2,'0')}`;
+        return (zaapiData.leadsByDay[dk] && zaapiData.leadsByDay[dk][rep]) || 0;
+      })
+    );
+
+    // Lead + Bill + Sales รายสัปดาห์ × รายเซล
+    const leadBill = repNames.map(rep => {
+      const leads = days.reduce((s, day) => {
+        const dk = `2026-06-${String(day).padStart(2,'0')}`;
+        return s + ((zaapiData.leadsByDay[dk] && zaapiData.leadsByDay[dk][rep]) || 0);
+      }, 0);
+      const wkSale   = (salesData.byWkBySale[wkKey] && salesData.byWkBySale[wkKey][rep]) || {};
+      const bills    = wkSale.open  || 0;
+      const salesAmt = wkSale.sales || 0;
+      const pct      = leads > 0 ? Math.round(bills / leads * 100) : 0;
+      return { leads, bills, sales: salesAmt, pct };
+    });
+
+    // ตอบช้า 12 ชม. รายสัปดาห์ × รายเซล
+    const wait12h = repNames.map(rep =>
+      days.reduce((s, day) => {
+        const dk = `2026-06-${String(day).padStart(2,'0')}`;
+        return s + ((zaapiData.missed12hByDay[dk] && zaapiData.missed12hByDay[dk][rep]) || 0);
+      }, 0)
+    );
+
+    // ข้อมูลวันแรกของสัปดาห์ (สำหรับตาราง "สรุปการทักรายวัน")
+    const day1    = days[0];
+    const day1Key = `2026-06-${String(day1).padStart(2,'0')}`;
+    const daily   = {
+      serving: repNames.map(() => null),  // ไม่มีใน JSON
+      chatAll: repNames.map(rep => (zaapiData.chatsByDay[day1Key]    && zaapiData.chatsByDay[day1Key][rep])    || 0),
+      active:  repNames.map(() => null),  // ไม่มีใน JSON
+      newCust: repNames.map(rep => (zaapiData.leadsByDay[day1Key]    && zaapiData.leadsByDay[day1Key][rep])    || 0),
+      bills:   repNames.map(rep => {
+        const ds = salesData.byDayBySale[String(day1)] && salesData.byDayBySale[String(day1)][rep];
+        return ds ? (ds.open || 0) : 0;
+      }),
+      pctNew:  repNames.map(rep => {
+        const chat = (zaapiData.chatsByDay[day1Key] && zaapiData.chatsByDay[day1Key][rep]) || 0;
+        const lead = (zaapiData.leadsByDay[day1Key] && zaapiData.leadsByDay[day1Key][rep]) || 0;
+        return chat > 0 ? Math.round(lead / chat * 100) : 0;
+      }),
+      status: repNames.map(() => "ปกติ"),
+    };
+
+    // Insights จากตัวเลขจริง
+    const repInsights = repNames.map((rep, i) => {
+      const lb = leadBill[i];
+      const w  = wait12h[i];
+      const ins = [];
+      if (lb.leads > 0) ins.push(`Lead ${fmt(lb.leads)} คน เปิดบิล ${lb.bills} บิล (${lb.pct}%)`);
+      else ins.push("ไม่มีข้อมูล Lead สัปดาห์นี้");
+      if (w > 0) ins.push(`ตอบช้า 12 ชม. ${w} เคส`);
+      if (lb.sales > 0) ins.push(`ยอดขาย ${fmtB(lb.sales)}`);
+      return ins;
+    });
+
+    const teamLeads = leadBill.reduce((s,r) => s + r.leads, 0);
+    const teamBills = leadBill.reduce((s,r) => s + r.bills, 0);
+    const teamSales = leadBill.reduce((s,r) => s + r.sales, 0);
+
+    result[wkKey] = {
+      tab:       `${wkKey} ${wkMeta.label}`,
+      label:     wkMeta.label,
+      info:      `ข้อมูลจริง · ${wkKey} ${wkMeta.label}`,
+      dates,
+      dailyLeads,
+      target:    repNames.map(() => null), // รอข้อมูลเป้า
+      daily,
+      leadBill,
+      teamTotal: { leads: teamLeads, bills: teamBills, sales: teamSales },
+      repStatus: repNames.map(() => "ปกติ"),
+      wait12h,
+      repInsights,
+    };
+  }
+  return result;
+}
+
+function buildTrendFromReal(builtWK) {
+  return ["WK1","WK2","WK3","WK4"].filter(k => builtWK[k]).map(k => {
+    const d   = builtWK[k];
+    const pct = d.teamTotal.leads > 0 ? Math.round(d.teamTotal.bills / d.teamTotal.leads * 100) : 0;
+    return { wk: k, label: d.label, leads: d.teamTotal.leads, bills: d.teamTotal.bills, sales: d.teamTotal.sales, pct };
+  });
+}
+
+// โหลด JSON จริง — ถ้าโหลดไม่ได้ (เช่น GitHub Pages ไม่มีไฟล์) ใช้ mock ต่อ
+async function tryLoadRealData() {
+  try {
+    const [sRes, zRes] = await Promise.all([
+      fetch('data/sales.json'),
+      fetch('data/zaapi.json'),
+    ]);
+    if (!sRes.ok || !zRes.ok) return;
+    const salesData = await sRes.json();
+    const zaapiData = await zRes.json();
+    const built = buildWKFromReal(salesData, zaapiData);
+    if (Object.keys(built).length > 0) {
+      wkData        = built;
+      trendData     = buildTrendFromReal(built);
+      usingRealData = true;
+      console.log('[Store-Statistics] ใช้ข้อมูลจริงจาก JSON');
+    }
+  } catch(e) {
+    console.log('[Store-Statistics] ไม่พบ JSON จริง — ใช้ mock data แทน');
+  }
+}
+
 // ─── Mock Data: ยอดขาย ────────────────────────────────────
 const SALES = {
   year:2026,month:"มิ.ย.",
@@ -368,13 +498,13 @@ function repCell(i){
 let activeWk = "WK1";
 
 function renderOverview(wkKey){
-  const d = WK[wkKey];
+  const d = wkData[wkKey];
   const pg = document.getElementById("page-overview");
-  const tl = TREND.find(t=>t.wk===wkKey);
+  const tl = trendData.find(t=>t.wk===wkKey);
 
   // Week tabs
   const tabs = ["WK1","WK2","WK3","WK4"].map(k=>
-    `<button class="wk-tab${k===wkKey?" active":""}" data-wk="${k}">${WK[k].tab}</button>`
+    `<button class="wk-tab${k===wkKey?" active":""}" data-wk="${k}">${wkData[k].tab}</button>`
   ).join("");
 
   // Daily leads table
@@ -382,13 +512,13 @@ function renderOverview(wkKey){
   const leadsRows = REPS.map((r,i)=>{
     const row = d.dailyLeads[i];
     const t = sum(row);
-    const avg = (t/7).toFixed(0);
+    const avg = (t/dates.length).toFixed(0);
     return `<tr>
       <td>${repCell(i)}</td>
       ${row.map(v=>`<td class="${v===0?'vr':'vb'}">${v}</td>`).join("")}
       <td><b>${fmt(t)}</b></td>
       <td>${avg}</td>
-      <td>${d.target[i]}%</td>
+      <td>${d.target[i] != null ? d.target[i]+'%' : '—'}</td>
     </tr>`;
   }).join("");
   const colSums = dates.map((_,j)=>sum(d.dailyLeads.map(r=>r[j])));
@@ -396,9 +526,9 @@ function renderOverview(wkKey){
   // Daily summary table
   const dailyRows = REPS.map((r,i)=>`<tr>
     <td>${repCell(i)}</td>
-    <td>${d.daily.serving[i]}</td>
+    <td>${d.daily.serving[i] ?? '—'}</td>
     <td>${fmt(d.daily.chatAll[i])}</td>
-    <td>${d.daily.active[i]}</td>
+    <td>${d.daily.active[i] ?? '—'}</td>
     <td class="${clsLead(d.daily.newCust[i])}">${d.daily.newCust[i]}</td>
     <td class="${clsBill(d.daily.bills[i])}">${d.daily.bills[i]}</td>
     <td>${d.daily.pctNew[i]}%</td>
@@ -423,7 +553,7 @@ function renderOverview(wkKey){
   const totLB = d.leadBill.reduce((a,b)=>({leads:a.leads+b.leads,bills:a.bills+b.bills,sales:a.sales+b.sales}),{leads:0,bills:0,sales:0});
 
   // Trend
-  const trendRows = TREND.map(t=>`
+  const trendRows = trendData.map(t=>`
     <div class="trend-row">
       <div class="trend-wk">${t.wk}<br><small style="color:var(--text3)">${t.label}</small></div>
       <div class="trend-stat"><div class="trend-stat-label">LEAD</div><div class="trend-stat-val ${clsLead(t.leads)}">${fmt(t.leads)}</div></div>
@@ -458,7 +588,7 @@ function renderOverview(wkKey){
 
   pg.innerHTML = `
     <div class="week-tabs" id="weekTabs">${tabs}</div>
-    <div class="info-bar">✅ ${d.info}</div>
+    <div class="info-bar">${usingRealData ? '📊' : '✅'} ${d.info}</div>
 
     <div class="section">
       <div class="sec-title">ยอดทักลูกค้ารายวัน</div>
@@ -470,7 +600,7 @@ function renderOverview(wkKey){
           </tr></thead>
           <tbody>${leadsRows}</tbody>
           <tfoot><tr><td>รวมทีมขาย</td>${colSums.map(v=>`<td>${v}</td>`).join("")}
-            <td>${fmt(sum(colSums))}</td><td>${(sum(colSums)/7).toFixed(0)}</td><td>—</td>
+            <td>${fmt(sum(colSums))}</td><td>${(sum(colSums)/dates.length).toFixed(0)}</td><td>—</td>
           </tr></tfoot>
         </table>
       </div>
@@ -955,8 +1085,9 @@ function initNav(){
 }
 
 // ─── Init ─────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded", async ()=>{
   initNav();
+  await tryLoadRealData();   // โหลด JSON จริง — ถ้าไม่มีใช้ mock ต่อ
   renderOverview(activeWk);
   renderSales();
   renderPerformance();
