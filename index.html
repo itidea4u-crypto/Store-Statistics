@@ -3,91 +3,153 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Store Statistics</title>
+  <title>สถิติของร้าน</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-  <header class="header">
-    <div class="header-inner">
-      <h1 class="header-title">📊 Store Statistics</h1>
-      <span class="header-subtitle">ข้อมูลสรุปร้าน — อัปเดต: <span id="last-updated">—</span></span>
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <span class="brand-icon">📊</span>
+      <span class="brand-text">สถิติของร้าน</span>
     </div>
-  </header>
+    <button class="nav-toggle" id="navToggle" aria-label="เมนู">☰</button>
+    <ul class="nav-menu" id="navMenu">
+      <li><a href="#" class="nav-link active" data-page="overview">ภาพรวม</a></li>
+      <li><a href="#" class="nav-link" data-page="sales">ยอดขาย</a></li>
+      <li><a href="#" class="nav-link" data-page="performance">ผลงานเซล</a></li>
+      <li><a href="#" class="nav-link" data-page="chat-stats">สถิติแชท</a></li>
+      <li><a href="#" class="nav-link" data-page="audit">ตรวจข้อมูล</a></li>
+      <li><a href="#" class="nav-link" data-page="admin">ผู้ดูแลระบบ</a></li>
+    </ul>
+  </div>
+</nav>
 
-  <main class="container">
+<!-- ===== CONTENT ===== -->
+<main class="main">
 
-    <!-- Summary Cards -->
-    <section class="cards-grid">
-      <div class="card card--blue">
-        <div class="card-label">Total Leads</div>
-        <div class="card-value" id="total-leads">—</div>
-        <div class="card-note">ลูกค้าที่เข้ามาทั้งหมด</div>
+  <!-- หน้า: ภาพรวม -->
+  <section id="page-overview" class="page active">
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2 class="page-title">ภาพรวม</h2>
+        <span class="period-label" id="periodLabel">—</span>
       </div>
-      <div class="card card--orange">
-        <div class="card-label">Open Bills</div>
-        <div class="card-value" id="open-bills">—</div>
-        <div class="card-note">บิลที่ยังค้างอยู่</div>
+      <div class="week-tabs" id="weekTabs">
+        <button class="wk-tab active" data-wk="WK1">WK1</button>
+        <button class="wk-tab" data-wk="WK2">WK2</button>
+        <button class="wk-tab" data-wk="WK3">WK3</button>
+        <button class="wk-tab" data-wk="WK4">WK4</button>
       </div>
-      <div class="card card--green">
-        <div class="card-label">Conversion Rate</div>
-        <div class="card-value" id="conversion-rate">—</div>
-        <div class="card-note">อัตราปิดการขาย</div>
+    </div>
+
+    <!-- การ์ดสรุป 4 ใบ -->
+    <div class="cards-row" id="summaryCards"></div>
+
+    <!-- ยอดทักล่าสุดรายวัน -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-blue"></span>
+        <h3 class="section-title">ยอดทักล่าสุดรายวัน</h3>
       </div>
-      <div class="card card--purple">
-        <div class="card-label">Total Sales</div>
-        <div class="card-value" id="total-sales">—</div>
-        <div class="card-note">ยอดขายรวม (บาท)</div>
+      <div class="table-scroll">
+        <table class="data-table" id="leadsTable"></table>
       </div>
-    </section>
+    </div>
 
-    <!-- Sales Rep Table -->
-    <section class="section">
-      <h2 class="section-title">รายชื่อเซล</h2>
-      <div class="table-wrapper">
-        <table class="data-table" id="sales-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>ชื่อเซล</th>
-              <th>Leads</th>
-              <th>ปิดงาน</th>
-              <th>Conversion</th>
-              <th>ยอดขาย (บาท)</th>
-              <th>สถานะ</th>
-            </tr>
-          </thead>
-          <tbody id="sales-tbody">
-            <!-- populated by JS -->
-          </tbody>
-        </table>
+    <!-- สรุปการเปิดบิลจากลีดรายวัน -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-green"></span>
+        <h3 class="section-title">สรุปการเปิดบิลจากลีดรายวัน</h3>
       </div>
-    </section>
-
-    <!-- Daily Summary Placeholder -->
-    <section class="section">
-      <h2 class="section-title">สรุปรายวัน <span class="badge">เร็วๆ นี้</span></h2>
-      <div class="placeholder-box">
-        <span class="placeholder-icon">📅</span>
-        <p>พื้นที่นี้สำหรับกราฟ / สรุปรายวัน<br>จะเชื่อมข้อมูลจาก Google Sheet ในลำดับถัดไป</p>
+      <div class="table-scroll">
+        <table class="data-table" id="billsTable"></table>
       </div>
-    </section>
+    </div>
 
-    <!-- Chart Placeholder -->
-    <section class="section">
-      <h2 class="section-title">กราฟภาพรวม <span class="badge">เร็วๆ นี้</span></h2>
-      <div class="placeholder-box">
-        <span class="placeholder-icon">📈</span>
-        <p>กราฟแสดงแนวโน้มยอดขายรายสัปดาห์<br>จะเพิ่มเมื่อเชื่อม API แล้ว</p>
+    <!-- การทักและการเปิดบิล -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-orange"></span>
+        <h3 class="section-title">การทักและการเปิดบิล</h3>
       </div>
-    </section>
+      <div class="table-scroll">
+        <table class="data-table" id="chatBillTable"></table>
+      </div>
+    </div>
 
-  </main>
+    <!-- สรุปทีม -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-purple"></span>
+        <h3 class="section-title">สรุปทีม</h3>
+      </div>
+      <div id="teamSummary"></div>
+    </div>
 
-  <footer class="footer">
-    <p>Store Statistics · ข้อมูล Mock (ทดสอบ) · <a href="https://github.com/itidea4u-crypto/Store-Statistics" target="_blank">GitHub</a></p>
-  </footer>
+    <!-- แนวโน้ม Lead → เปิดบิล รายสัปดาห์ -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-teal"></span>
+        <h3 class="section-title">แนวโน้ม Lead → เปิดบิล รายสัปดาห์</h3>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="trendTable"></table>
+      </div>
+    </div>
 
-  <script src="js/app.js"></script>
+    <!-- สถิติรายคนของเซล -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-dot dot-blue"></span>
+        <h3 class="section-title">สถิติรายคนของเซล</h3>
+      </div>
+      <div class="rep-grid" id="repCards"></div>
+    </div>
+
+    <!-- แถวล่าง: สรุปยอดล่าสุด + สิ่งที่ต้องจับตา -->
+    <div class="bottom-row">
+      <div class="section">
+        <div class="section-header">
+          <span class="section-dot dot-green"></span>
+          <h3 class="section-title">สรุปยอดล่าสุด</h3>
+        </div>
+        <div id="latestSummary"></div>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <span class="section-dot dot-orange"></span>
+          <h3 class="section-title">สิ่งที่ต้องจับตา</h3>
+        </div>
+        <div id="watchList"></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- หน้าอื่น (placeholder) -->
+  <section id="page-sales" class="page">
+    <div class="coming-soon"><span>🚧</span><p>หน้ายอดขาย</p><small>กำลังพัฒนา</small></div>
+  </section>
+  <section id="page-performance" class="page">
+    <div class="coming-soon"><span>🚧</span><p>หน้าผลงานเซล</p><small>กำลังพัฒนา</small></div>
+  </section>
+  <section id="page-chat-stats" class="page">
+    <div class="coming-soon"><span>🚧</span><p>หน้าสถิติแชท</p><small>กำลังพัฒนา</small></div>
+  </section>
+  <section id="page-audit" class="page">
+    <div class="coming-soon"><span>🚧</span><p>หน้าตรวจข้อมูล</p><small>กำลังพัฒนา</small></div>
+  </section>
+  <section id="page-admin" class="page">
+    <div class="coming-soon"><span>🚧</span><p>หน้าผู้ดูแลระบบ</p><small>กำลังพัฒนา</small></div>
+  </section>
+
+</main>
+
+<script src="js/app.js"></script>
 </body>
 </html>
