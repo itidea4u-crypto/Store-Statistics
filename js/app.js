@@ -315,8 +315,10 @@ function buildTrendFromReal(builtWK) {
   });
 }
 
-// โหลด JSON จริง — ถ้าโหลดไม่ได้ (เช่น GitHub Pages ไม่มีไฟล์) ใช้ mock ต่อ
+// โหลด JSON จริง — เฉพาะ localhost เท่านั้น เพื่อไม่ให้เกิด 404 บน GitHub Pages
 async function tryLoadRealData() {
+  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!isLocal) return;
   try {
     const [sRes, zRes] = await Promise.all([
       fetch('data/sales.json'),
@@ -358,7 +360,7 @@ const SALES = {
 
 // ─── Mock Data: ผลงานเซล ─────────────────────────────────
 const PERF = {
-  from:"06/01/2026",to:"06/30/2026",
+  from:"2026-06-01",to:"2026-06-30",
   summary:{sales:4954122.48,bills:237,chats:8949},
   byRep:[
     {name:"อุ๋ม", newOld:"ใหม่ 778 / เก่า 651",chats:1429,slow:37,bills:49,sales:1096129.75,status:"ปกติ"},
