@@ -209,9 +209,10 @@ const TREND = [
 
 // ─── Real Data Layer ──────────────────────────────────────
 // wkData / trendData: เริ่มต้นเป็น mock, เปลี่ยนเป็นข้อมูลจริงเมื่อโหลด JSON ได้
-let wkData      = WK;
-let trendData   = TREND;
-let usingRealData = false;
+let wkData           = WK;
+let trendData        = TREND;
+let salesDisplayData;        // กำหนดค่าหลัง SALES ถูก define ด้านล่าง
+let usingRealData    = false;
 
 function buildWKFromReal(salesData, zaapiData) {
   const repNames = REPS.map(r => r.name);
@@ -315,6 +316,67 @@ function buildTrendFromReal(builtWK) {
   });
 }
 
+function buildSalesFromReal(salesData) {
+  const repNames = REPS.map(r => r.name);
+  const wkKeys   = ["WK1","WK2","WK3","WK4"];
+
+  let total=0, totalOpen=0, totalClose=0, totalOld=0, totalNew=0;
+  let totPSuay=0, totPIdea=0, totPFarm=0, totPMetal=0;
+
+  const repAcc = {};
+  repNames.forEach(n => {
+    repAcc[n] = {sales:0,open:0,close:0,oldCust:0,newCust:0,pSuay:0,pIdea:0,pFarm:0,pMetal:0};
+  });
+
+  const byWk = {};
+  for (const wk of wkKeys) {
+    if (!salesData.byWkBySale[wk]) continue;
+    let ws=0, wo=0, wc=0;
+    for (const rep of repNames) {
+      const d = salesData.byWkBySale[wk][rep] || {};
+      ws += d.sales||0; wo += d.open||0; wc += d.close||0;
+      repAcc[rep].sales   += d.sales||0;
+      repAcc[rep].open    += d.open||0;
+      repAcc[rep].close   += d.close||0;
+      repAcc[rep].oldCust += d.oldCust||0;
+      repAcc[rep].newCust += d.newCust||0;
+      repAcc[rep].pSuay   += d.pSuay||0;
+      repAcc[rep].pIdea   += d.pIdea||0;
+      repAcc[rep].pFarm   += d.pFarm||0;
+      repAcc[rep].pMetal  += d.pMetal||0;
+      totPSuay += d.pSuay||0; totPIdea += d.pIdea||0;
+      totPFarm += d.pFarm||0; totPMetal += d.pMetal||0;
+      totalOld += d.oldCust||0; totalNew += d.newCust||0;
+    }
+    const wkMeta = salesData.weeks && salesData.weeks[wk];
+    byWk[wk] = { label: wkMeta ? wkMeta.label : wk, sales: ws, open: wo, close: wc };
+    total += ws; totalOpen += wo; totalClose += wc;
+  }
+
+  const byRep = REPS.map(r => ({
+    name:    r.name,
+    color:   r.color,
+    val:     repAcc[r.name].sales,
+    open:    repAcc[r.name].open,
+    close:   repAcc[r.name].close,
+    oldCust: repAcc[r.name].oldCust,
+    newCust: repAcc[r.name].newCust,
+    pSuay:   repAcc[r.name].pSuay,
+    pIdea:   repAcc[r.name].pIdea,
+    pFarm:   repAcc[r.name].pFarm,
+    pMetal:  repAcc[r.name].pMetal,
+  }));
+
+  return {
+    isReal: true,
+    year: 2026, month: "มิ.ย.",
+    monthLabel: salesData.month || "มิถุนายน 2569",
+    total, totalOpen, totalClose, totalOld, totalNew,
+    pSuay: totPSuay, pIdea: totPIdea, pFarm: totPFarm, pMetal: totPMetal,
+    byWk, byRep,
+  };
+}
+
 // โหลด JSON จริง — เฉพาะ localhost เท่านั้น เพื่อไม่ให้เกิด 404 บน GitHub Pages
 async function tryLoadRealData() {
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -329,9 +391,10 @@ async function tryLoadRealData() {
     const zaapiData = await zRes.json();
     const built = buildWKFromReal(salesData, zaapiData);
     if (Object.keys(built).length > 0) {
-      wkData        = built;
-      trendData     = buildTrendFromReal(built);
-      usingRealData = true;
+      wkData           = built;
+      trendData        = buildTrendFromReal(built);
+      salesDisplayData = buildSalesFromReal(salesData);
+      usingRealData    = true;
       console.log('[Store-Statistics] ใช้ข้อมูลจริงจาก JSON');
     }
   } catch(e) {
@@ -357,6 +420,8 @@ const SALES = {
     {name:"เบล",  color:"#14b8a6",val:544995},
   ],
 };
+
+salesDisplayData = SALES;   // ต้อง assign หลัง SALES ถูก define
 
 // ─── Mock Data: ผลงานเซล ─────────────────────────────────
 const PERF = {
@@ -705,11 +770,11 @@ function renderOverview(wkKey){
 
 // ─── Page: ยอดขาย ─────────────────────────────────────────
 function renderSales(){
-  const max = Math.max(...SALES.byRep.map(r=>r.val));
-  const maxT = Math.max(...SALES.byType.map(t=>t.val));
+  const S   = salesDisplayData;
+  const max = Math.max(...S.byRep.map(r=>r.val));
 
-  const repBars = SALES.byRep.map(r=>{
-    const w = (r.val/max*100).toFixed(1);
+  const repBars = S.byRep.map(r=>{
+    const w = max > 0 ? (r.val/max*100).toFixed(1) : 0;
     return `<div class="hbar-row">
       <div class="hbar-label">${r.name}</div>
       <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${r.color}">
@@ -718,77 +783,144 @@ function renderSales(){
     </div>`;
   }).join("");
 
-  const typeBars = SALES.byType.map(t=>{
-    const w = (t.val/maxT*100).toFixed(1);
-    return `<div class="hbar-row">
-      <div class="hbar-label" style="width:80px">${t.name}</div>
-      <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:var(--orange)">
-        <span class="hbar-val">${fmtB(t.val)}</span>
-      </div></div>
-    </div>`;
-  }).join("");
-
-  const typeRows = SALES.byType.map(t=>`<tr>
-    <td>${t.name}</td><td>${fmtB(t.val)}</td>
-  </tr>`).join("");
-  const repRows = SALES.byRep.map(r=>`<tr>
-    <td>${r.name}</td><td>${fmtB(r.val)}</td>
-  </tr>`).join("");
-
-  document.getElementById("page-sales").innerHTML = `
-    <div class="filter-row">
-      <span class="filter-label">ปี</span>
-      <select class="filter-select"><option>${SALES.year}</option></select>
-      <span class="filter-label">เดือน</span>
-      <select class="filter-select"><option>${SALES.month}</option></select>
-      <span class="filter-label">ทีมกัน</span>
-      <select class="filter-select"><option>เดือนก่อนหน้า</option></select>
-      <button class="btn-orange">โหลดข้อมูลใหม่</button>
-    </div>
-
-    <div class="section">
-      <div class="period-header">สาระสำคัญ <b>${SALES.year}-06</b></div>
-      <div class="sum-cards" style="grid-template-columns:1fr">
-        <div class="sum-card" style="max-width:220px">
-          <div class="sum-label">ยอดขายรวม</div>
-          <div class="sum-val sv-o">${fmtB(SALES.total)}</div>
-        </div>
+  // สรุป cards
+  const summaryCards = S.isReal ? `
+    <div class="sum-cards">
+      <div class="sum-card"><div class="sum-label">ยอดขายรวม</div><div class="sum-val sv-o">${fmtB(S.total)}</div><div class="sum-unit">บาท</div></div>
+      <div class="sum-card"><div class="sum-label">เปิดบิลรวม</div><div class="sum-val sv-g">${S.totalOpen}</div><div class="sum-unit">บิล</div></div>
+      <div class="sum-card"><div class="sum-label">ปิดบิลรวม</div><div class="sum-val">${S.totalClose}</div><div class="sum-unit">บิล</div></div>
+      <div class="sum-card"><div class="sum-label">ลูกค้าใหม่ / เก่า</div><div class="sum-val" style="font-size:1.1rem">${fmt(S.totalNew)} / ${fmt(S.totalOld)}</div><div class="sum-unit">คน</div></div>
+    </div>` : `
+    <div class="sum-cards" style="grid-template-columns:1fr">
+      <div class="sum-card" style="max-width:220px">
+        <div class="sum-label">ยอดขายรวม</div>
+        <div class="sum-val sv-o">${fmtB(S.total)}</div>
       </div>
-    </div>
+    </div>`;
 
+  // ยอดขายรายสัปดาห์ (real only)
+  const wkSection = S.isReal ? `
     <div class="section">
-      <div class="sec-title">สาขาพร้อมขาย รายแพ็จ / รายเซล</div>
+      <div class="sec-title">ยอดขายรายสัปดาห์</div>
+      <div class="tbl-wrap"><table class="dtbl">
+        <thead><tr><th>สัปดาห์</th><th>ยอดขาย</th><th>เปิดบิล</th><th>ปิดบิล</th></tr></thead>
+        <tbody>${Object.entries(S.byWk).map(([wk,d])=>`<tr>
+          <td>${wk} <small style="color:var(--text3)">${d.label}</small></td>
+          <td>${fmtB(d.sales)}</td>
+          <td class="${clsBill(d.open)}">${d.open}</td>
+          <td>${d.close}</td>
+        </tr>`).join("")}</tbody>
+        <tfoot><tr>
+          <td>รวม</td><td>${fmtB(S.total)}</td>
+          <td class="${clsBill(S.totalOpen)}">${S.totalOpen}</td>
+          <td>${S.totalClose}</td>
+        </tr></tfoot>
+      </table></div>
+    </div>` : '';
+
+  // รายละเอียดรายเซล
+  const repTableHead = S.isReal
+    ? `<th style="text-align:left">เซล</th><th>ยอดขาย</th><th>เปิดบิล</th><th>ปิดบิล</th><th>ลูกค้าใหม่</th><th>ลูกค้าเก่า</th>`
+    : `<th style="text-align:left">เซล</th><th>ยอดขาย</th>`;
+  const repTableRows = S.byRep.map(r=>`<tr>
+    <td>${r.name}</td>
+    <td>${fmtB(r.val)}</td>
+    ${S.isReal ? `<td class="${clsBill(r.open)}">${r.open}</td><td>${r.close}</td><td>${fmt(r.newCust)}</td><td>${fmt(r.oldCust)}</td>` : ''}
+  </tr>`).join("");
+  const repTableFoot = S.isReal
+    ? `<td>รวม</td><td>${fmtB(S.total)}</td><td class="${clsBill(S.totalOpen)}">${S.totalOpen}</td><td>${S.totalClose}</td><td>${fmt(S.totalNew)}</td><td>${fmt(S.totalOld)}</td>`
+    : `<td>รวม</td><td>${fmtB(S.total)}</td>`;
+
+  // ยอดขายตามเพจ
+  let pageSection;
+  if (S.isReal) {
+    const pageData = [
+      {name:"ป้ายสวมเด่น (สวย)", bills: S.pSuay},
+      {name:"ไอเดียสัน (ไอเดีย)", bills: S.pIdea},
+      {name:"พาร์มโลโก (ฟาร์ม)", bills: S.pFarm},
+      {name:"โลหะ",               bills: S.pMetal},
+    ];
+    const pageRows = pageData.map(p=>`<tr>
+      <td>${p.name}</td>
+      <td class="${clsBill(p.bills)}">${p.bills} บิล</td>
+      <td style="color:var(--text3)">—</td>
+    </tr>`).join("");
+    pageSection = `
+    <div class="section">
+      <div class="sec-title">ยอดขายตามเพจ</div>
+      <div class="tbl-wrap"><table class="dtbl">
+        <thead><tr><th style="text-align:left">เพจ</th><th>จำนวนบิล</th><th>ยอดขาย (บาท)</th></tr></thead>
+        <tbody>${pageRows}</tbody>
+        <tfoot><tr><td>รวม</td><td>${S.pSuay+S.pIdea+S.pFarm+S.pMetal} บิล</td><td>—</td></tr></tfoot>
+      </table></div>
+      <div style="font-size:.74rem;color:var(--text3);margin-top:8px">หมายเหตุ: ยอดขายรายเพจ (บาท) ยังไม่มีใน JSON · รอปรับ script ในรุ่นถัดไป</div>
+    </div>`;
+  } else {
+    const maxT = Math.max(...SALES.byType.map(t=>t.val));
+    const typeBars = SALES.byType.map(t=>{
+      const w = (t.val/maxT*100).toFixed(1);
+      return `<div class="hbar-row">
+        <div class="hbar-label" style="width:80px">${t.name}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:var(--orange)">
+          <span class="hbar-val">${fmtB(t.val)}</span>
+        </div></div>
+      </div>`;
+    }).join("");
+    const typeRows = SALES.byType.map(t=>`<tr>
+      <td>${t.name}</td><td>${fmtB(t.val)}</td>
+    </tr>`).join("");
+    pageSection = `
+    <div class="section">
+      <div class="sec-title">ยอดขายรายแพ็จ</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;flex-wrap:wrap">
         <div>
           <div style="font-size:.8rem;color:var(--text3);margin-bottom:10px">ยอดขายรายแพ็จ</div>
           <div class="hbar-chart">${typeBars}</div>
         </div>
-        <div>
-          <div style="font-size:.8rem;color:var(--text3);margin-bottom:10px">ยอดขายรายเซล</div>
-          <div class="hbar-chart">${repBars}</div>
-        </div>
       </div>
-    </div>
-
-    <div class="section">
-      <div class="sec-title">ยอดขายรายแพ็จ</div>
-      <div class="tbl-wrap"><table class="dtbl">
+      <div class="tbl-wrap" style="margin-top:12px"><table class="dtbl">
         <thead><tr><th style="text-align:left">แพ็จ</th><th>ยอดขาย</th></tr></thead>
         <tbody>${typeRows}</tbody>
         <tfoot><tr><td>รวม</td><td>${fmtB(SALES.total)}</td></tr></tfoot>
       </table></div>
+    </div>`;
+  }
+
+  document.getElementById("page-sales").innerHTML = `
+    <div class="filter-row">
+      <span class="filter-label">ปี</span>
+      <select class="filter-select"><option>${S.year}</option></select>
+      <span class="filter-label">เดือน</span>
+      <select class="filter-select"><option>${S.month}</option></select>
+      <button class="btn-orange">โหลดข้อมูลใหม่</button>
     </div>
+
+    <div class="info-bar">${usingRealData ? '📊' : '✅'} ${S.isReal ? `ข้อมูลจริง · ${S.monthLabel}` : 'ข้อมูลตัวอย่าง'}</div>
+
+    <div class="section">
+      <div class="period-header">สรุปเดือน <b>${S.year}-06</b></div>
+      ${summaryCards}
+    </div>
+
+    ${wkSection}
 
     <div class="section">
       <div class="sec-title">ยอดขายรายเซล</div>
+      <div class="hbar-chart">${repBars}</div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">รายละเอียดยอดขายรายเซล</div>
       <div class="tbl-wrap"><table class="dtbl">
-        <thead><tr><th style="text-align:left">เซล</th><th>ยอดขาย</th></tr></thead>
-        <tbody>${repRows}</tbody>
-        <tfoot><tr><td>รวม</td><td>${fmtB(SALES.total)}</td></tr></tfoot>
+        <thead><tr>${repTableHead}</tr></thead>
+        <tbody>${repTableRows}</tbody>
+        <tfoot><tr>${repTableFoot}</tr></tfoot>
       </table></div>
     </div>
 
-    <div class="page-footer">ข้อมูลจากระบบบัญชี (Freshbooks)</div>
+    ${pageSection}
+
+    <div class="page-footer">ข้อมูลจากไฟล์ยอดขาย${S.isReal ? ` · ${S.monthLabel}` : ' (ตัวอย่าง)'}</div>
   `;
 }
 
