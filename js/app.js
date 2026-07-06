@@ -341,11 +341,24 @@ const fmtB = n => "฿" + Number(n).toLocaleString("th-TH",{minimumFractionDigit
 const sum  = a => a.reduce((t,v)=>t+v,0);
 
 function statusBadge(s){
-  const map={"ปกติ":"b-normal","มาตรฐาน":"b-normal","ปักษี":"b-normal","อิสระ":"b-free",
-             "จับตา":"b-watch","น้อยมาก":"b-lo","ต้องคุย":"b-talk",
-             "ควรติดตาม":"b-follow","เลือกดึง":"b-follow","รอเชื่อมข้อมูล":"b-follow"};
+  const map={
+    "ปกติ":"b-normal","มาตรฐาน":"b-normal","ปักษี":"b-normal","อิสระ":"b-free",
+    "จับตา":"b-watch","น้อยมาก":"b-lo",
+    "ต้องคุย":"b-talk","ต้องดูแล":"b-talk","ผิดปกติ":"b-talk","ไม่มีข้อมูล":"b-talk",
+    "ควรติดตาม":"b-follow","เลือกดึง":"b-follow","รอเชื่อมข้อมูล":"b-follow",
+  };
   return `<span class="badge ${map[s]||'b-watch'}">${s}</span>`;
 }
+
+// ─── Color helpers ─────────────────────────────────────────
+// Bills/leads/sales: 0 = red, else normal class
+function clsBill(v){ return v===0?'vr':'vg'; }
+function clsLead(v){ return v===0?'vr':'vb'; }
+function clsSales(v){ return v===0?'vr':''; }
+// Conversion %: 0% = red, ≥5% = green, else orange
+function clsPct(v){ return v===0?'vr':v>=5?'vg':'vo'; }
+// Slow response: 0 = green (good!), 1–19 = normal, 20–39 = orange, ≥40 = red
+function clsSlow(v){ return v===0?'vg':v>=40?'vr':v>=20?'vo':'vm'; }
 
 function repCell(i){
   return `<div class="rep-cell"><span class="rdot" style="background:${REPS[i].color}"></span>${REPS[i].name}</div>`;
@@ -372,7 +385,7 @@ function renderOverview(wkKey){
     const avg = (t/7).toFixed(0);
     return `<tr>
       <td>${repCell(i)}</td>
-      ${row.map(v=>`<td class="vb">${v}</td>`).join("")}
+      ${row.map(v=>`<td class="${v===0?'vr':'vb'}">${v}</td>`).join("")}
       <td><b>${fmt(t)}</b></td>
       <td>${avg}</td>
       <td>${d.target[i]}%</td>
@@ -386,8 +399,8 @@ function renderOverview(wkKey){
     <td>${d.daily.serving[i]}</td>
     <td>${fmt(d.daily.chatAll[i])}</td>
     <td>${d.daily.active[i]}</td>
-    <td class="vb">${d.daily.newCust[i]}</td>
-    <td class="vg">${d.daily.bills[i]}</td>
+    <td class="${clsLead(d.daily.newCust[i])}">${d.daily.newCust[i]}</td>
+    <td class="${clsBill(d.daily.bills[i])}">${d.daily.bills[i]}</td>
     <td>${d.daily.pctNew[i]}%</td>
     <td>${statusBadge(d.daily.status[i])}</td>
   </tr>`).join("");
@@ -397,13 +410,13 @@ function renderOverview(wkKey){
     const lb = d.leadBill[i];
     const bar = `<div class="conv-bar-wrap">
       <div class="conv-track"><div class="conv-fill" style="width:${Math.min(lb.pct*5,100)}%"></div></div>
-      <span class="vo">${lb.pct}%</span>
+      <span class="${clsPct(lb.pct)}">${lb.pct}%</span>
     </div>`;
     return `<tr>
       <td>${repCell(i)}</td>
-      <td class="vb">${fmt(lb.leads)}</td>
-      <td class="vg">${lb.bills}</td>
-      <td>${fmtB(lb.sales)}</td>
+      <td class="${clsLead(lb.leads)}">${fmt(lb.leads)}</td>
+      <td class="${clsBill(lb.bills)}">${lb.bills}</td>
+      <td class="${clsSales(lb.sales)}">${fmtB(lb.sales)}</td>
       <td>${bar}</td>
     </tr>`;
   }).join("");
@@ -413,10 +426,10 @@ function renderOverview(wkKey){
   const trendRows = TREND.map(t=>`
     <div class="trend-row">
       <div class="trend-wk">${t.wk}<br><small style="color:var(--text3)">${t.label}</small></div>
-      <div class="trend-stat"><div class="trend-stat-label">LEAD</div><div class="trend-stat-val vb">${fmt(t.leads)}</div></div>
-      <div class="trend-stat"><div class="trend-stat-label">เปิดบิล</div><div class="trend-stat-val vg">${t.bills}</div></div>
-      <div class="trend-stat"><div class="trend-stat-label">ยอดเงิน</div><div class="trend-stat-val">${fmtB(t.sales)}</div></div>
-      <div class="trend-stat"><div class="trend-stat-label">LEAD→บิล</div><div class="trend-stat-val vo">${t.pct}%</div></div>
+      <div class="trend-stat"><div class="trend-stat-label">LEAD</div><div class="trend-stat-val ${clsLead(t.leads)}">${fmt(t.leads)}</div></div>
+      <div class="trend-stat"><div class="trend-stat-label">เปิดบิล</div><div class="trend-stat-val ${clsBill(t.bills)}">${t.bills}</div></div>
+      <div class="trend-stat"><div class="trend-stat-label">ยอดเงิน</div><div class="trend-stat-val ${clsSales(t.sales)}">${fmtB(t.sales)}</div></div>
+      <div class="trend-stat"><div class="trend-stat-label">LEAD→บิล</div><div class="trend-stat-val ${clsPct(t.pct)}">${t.pct}%</div></div>
       <div class="trend-badge"><span class="badge b-ok">ครบ</span></div>
     </div>`).join("");
 
@@ -432,10 +445,10 @@ function renderOverview(wkKey){
       </div>
       <div class="rc-body">
         <div class="rc-stats">
-          <div><div class="rc-stat-lbl">ลูกค้าใหม่ / Lead</div><div class="rc-stat-val sv-b">${fmt(lb.leads)} คน</div></div>
-          <div><div class="rc-stat-lbl">เปิดบิล</div><div class="rc-stat-val">${lb.bills} บิล</div></div>
-          <div><div class="rc-stat-lbl">ยอดขาย</div><div class="rc-stat-val">${fmtB(lb.sales)}</div></div>
-          <div><div class="rc-stat-lbl">ตอบช้า 12 ชม.</div><div class="rc-stat-val">${d.wait12h[i]} เคส</div></div>
+          <div><div class="rc-stat-lbl">ลูกค้าใหม่ / Lead</div><div class="rc-stat-val ${clsLead(lb.leads)}">${fmt(lb.leads)} คน</div></div>
+          <div><div class="rc-stat-lbl">เปิดบิล</div><div class="rc-stat-val ${clsBill(lb.bills)}">${lb.bills} บิล</div></div>
+          <div><div class="rc-stat-lbl">ยอดขาย</div><div class="rc-stat-val ${clsSales(lb.sales)}">${fmtB(lb.sales)}</div></div>
+          <div><div class="rc-stat-lbl">ตอบช้า 12 ชม.</div><div class="rc-stat-val ${clsSlow(d.wait12h[i])}">${d.wait12h[i]} เคส</div></div>
         </div>
         <ul class="rc-bullets">${bullets}</ul>
         <div class="rc-summary">ลูกค้าใหม่ ${fmt(lb.leads)} คน เปิดบิล ${lb.bills} บิล — ${d.repStatus[i]==="ปักษี"?"แคก":d.repStatus[i]==="ควรติดตาม"?"ต้องติดตาม":"แอก"}</div>
@@ -654,16 +667,16 @@ function renderPerformance(){
     <td>${r.name}</td>
     <td style="font-size:.8rem">${r.newOld}</td>
     <td>${fmt(r.chats)}</td>
-    <td class="${r.slow>40?'vr':'vm'}">${r.slow}</td>
-    <td class="vg">${r.bills}</td>
-    <td>${fmtB(r.sales)}</td>
+    <td class="${clsSlow(r.slow)}">${r.slow}</td>
+    <td class="${clsBill(r.bills)}">${r.bills}</td>
+    <td class="${clsSales(r.sales)}">${fmtB(r.sales)}</td>
     <td>${statusBadge(r.status)}</td>
   </tr>`).join("");
 
   const wkHeaders = ["WK1 LEAD","WK1 บิล","WK2 LEAD","WK2 บิล","WK3 LEAD","WK3 บิล","WK4 LEAD","WK4 บิล"];
   const lbRows = PERF.leadBillWk.map(r=>`<tr>
     <td>${r.name}</td>
-    ${r.d.map((v,i)=>`<td class="${i%2===0?'vb':'vg'}">${fmt(v)}</td>`).join("")}
+    ${r.d.map((v,i)=>`<td class="${i%2===0?clsLead(v):clsBill(v)}">${fmt(v)}</td>`).join("")}
   </tr>`).join("");
 
   const detailCards = PERF.repDetail.map(r=>`
@@ -674,9 +687,9 @@ function renderPerformance(){
       </div>
       <div class="rc-body">
         <div style="font-size:.8rem;color:var(--text3);margin-bottom:6px">
-          แอก ${fmt(r.chats)} ครั้ง · ลูกค้าใหม่/เก่า ${r.newOld} · เปิดบิล ${r.bills} บิล · ตอบช้า ${r.slow} เคส
+          แอก ${fmt(r.chats)} ครั้ง · ลูกค้าใหม่/เก่า ${r.newOld} · เปิดบิล <span class="${clsBill(r.bills)}">${r.bills} บิล</span> · ตอบช้า <span class="${clsSlow(r.slow)}">${r.slow} เคส</span>
         </div>
-        <div style="font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:10px">ยอดขาย ${fmtB(r.sales)}</div>
+        <div style="font-size:.85rem;font-weight:700;margin-bottom:10px" class="${clsSales(r.sales)}">ยอดขาย ${fmtB(r.sales)}</div>
         <div style="font-size:.79rem;font-weight:600;color:var(--text3);margin-bottom:4px">หลักฐานจากตัวเลข</div>
         <ul class="rc-bullets">${r.facts.map(f=>`<li>${f}</li>`).join("")}</ul>
         ${r.points.length?`<div style="font-size:.79rem;font-weight:600;color:var(--text3);margin:8px 0 4px">จุดเด่น</div>
@@ -769,7 +782,7 @@ function renderChatStats(){
   const repTableRows = CHAT.byRep.map(r=>`<tr>
     <td><div class="rep-cell"><span class="rdot" style="background:${r.color}"></span>${r.name}</div></td>
     <td>${r.chats}</td>
-    <td>${r.slow}<br><small style="color:var(--text3)">${r.pct}%</small></td>
+    <td class="${clsSlow(r.slow)}">${r.slow}<br><small style="color:var(--text3)">${r.pct}%</small></td>
   </tr>`).join("");
 
   document.getElementById("page-chat-stats").innerHTML = `
@@ -783,7 +796,7 @@ function renderChatStats(){
       </div>
       <div class="sum-cards">
         <div class="sum-card"><div class="sum-label">จำนวนแอกทั้งหมด</div><div class="sum-val">${CHAT.total}</div><div class="sum-unit">ครั้ง</div></div>
-        <div class="sum-card"><div class="sum-label">ตอบช้ากัน 12 ชม.</div><div class="sum-val sv-o">${CHAT.slow12h}</div><div class="sum-unit">เคส</div></div>
+        <div class="sum-card"><div class="sum-label">ตอบช้ากัน 12 ชม.</div><div class="sum-val ${clsSlow(CHAT.slow12h)}">${CHAT.slow12h}</div><div class="sum-unit">เคส</div></div>
         <div class="sum-card"><div class="sum-label">ตอบใน 10 นาที</div><div class="sum-val" style="font-size:1.2rem;color:var(--text3)">รอเชื่อมข้อมูล</div></div>
         <div class="sum-card"><div class="sum-label">แอกที่ไม่ตอบหมายเหตุ</div><div class="sum-val" style="font-size:1.2rem;color:var(--text3)">รอเชื่อมข้อมูล</div></div>
       </div>

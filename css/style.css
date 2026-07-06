@@ -218,12 +218,12 @@ body{
   box-shadow:0 0 0 2px rgba(255,255,255,.9);
 }
 
-/* Value colors */
-.vb{color:var(--blue);font-weight:700;}
-.vg{color:var(--green);font-weight:700;}
-.vo{color:var(--orange);font-weight:700;}
-.vr{color:var(--red);font-weight:700;}
-.vm{color:var(--text2);}
+/* Value colors — higher specificity to override .dtbl td */
+.vb,.dtbl td.vb,.dtbl tfoot td.vb{color:var(--blue);font-weight:700;}
+.vg,.dtbl td.vg,.dtbl tfoot td.vg{color:var(--green);font-weight:700;}
+.vo,.dtbl td.vo,.dtbl tfoot td.vo{color:var(--orange);font-weight:700;}
+.vr,.dtbl td.vr,.dtbl tfoot td.vr{color:var(--red);font-weight:700;}
+.vm,.dtbl td.vm{color:var(--text2);}
 
 /* ===== STATUS BADGES ===== */
 .badge{
